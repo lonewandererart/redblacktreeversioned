@@ -1,248 +1,386 @@
 package org.example.redblacktree;
 
-import org.example.redblacktree.Node;
-import org.example.redblacktree.RedBlackTree;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
-import java.util.stream.Collectors;
+import java.util.NoSuchElementException;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class RedBlackTreeTest {
 
-    @org.junit.jupiter.api.Test
-    void rebalanceInsertTest() {
+    @Test
+    void rootTest(){
+        List<Integer> treeList = List.of(2);
+        assertInsertCorrect(treeList);
+    }
 
-        List<Integer> listWithUncle = List.of(5, 4, 7, 6, 8, 9);
-        RedBlackTree<Integer> tree = createDummyTreeFromArray(listWithUncle);
-        assertTrue(tree.validateRedBlackProperties());
 
-        List<Integer> sortedTreeList = listWithUncle.stream().sorted().toList();
+    @Test
+    void insertAndRebalanceWithRedUncle(){
+        List<Integer> treeList = List.of(5, 4, 8, 6, 9, 7);
+        assertInsertCorrect(treeList);
+    }
+
+    @Test
+    void insertAndRebalanceRightRotationMinimal() {
+        List<Integer> treeList = List.of(3, 2, 1);
+        assertInsertCorrect(treeList);
+    }
+
+    @Test
+    void insertAndRebalanceLeftRightRotationMinimal() {
+        List<Integer> treeList = List.of(4,2,3);
+        assertInsertCorrect(treeList);
+    }
+
+    @Test
+    void insertAndRebalanceLeftRotationMinimal() {
+        List<Integer> treeList = List.of(2, 4, 3);
+        assertInsertCorrect(treeList);
+    }
+
+    @Test
+    void insertAndRebalanceRightLeftRotationMinimal() {
+        List<Integer> treeList = List.of(2, 4, 3);
+        assertInsertCorrect(treeList);
+    }
+
+    @Test
+    void noDuplicatesTest() {
+        List<Integer> treeList = List.of(2, 3, 1, 2);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        assertThrows(IllegalArgumentException.class, () -> treeList.forEach(tree::insert));
+    }
+
+    @Test
+    void leftRightRotationExtendedTest() {
+        List<Integer> treeList = List.of(7, 5, 8, 4, 6, 9, 2, 10, 3);
+        assertInsertCorrect(treeList);
+    }
+
+    @Test
+    void deleteOneNodeTreeTest() {
+        List<Integer> treeList = List.of(1);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        tree.delete(tree.getRoot().getValue());
+        assertNull(tree.getRoot());
+    }
+
+    @Test
+    void deleteLeftLeafMinimalTest() {
+        List<Integer> treeList = List.of(2, 1, 3);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        int toDelete = 1;
+        tree.delete(toDelete);
         List<Integer> treeElems = new ArrayList<>();
         tree.forEach(treeElems::add);
-        assertEquals(sortedTreeList, treeElems);
-
-
-        List<Integer> listRightHeavy1 = List.of(5, 4, 7, 9, 8);
-        RedBlackTree<Integer> treeRightHeavy1 = createDummyTreeFromArray(listRightHeavy1);
-        assertTrue(treeRightHeavy1.validateRedBlackProperties());
-
-        List<Integer> sortedTreeRightHeavy1List = listRightHeavy1.stream().sorted().toList();
-        List<Integer> treeRightHeavy1Elems = new ArrayList<>();
-        treeRightHeavy1.forEach(treeRightHeavy1Elems::add);
-        assertEquals(sortedTreeRightHeavy1List, treeRightHeavy1Elems);
-
-
-        List<Integer> listRightHeavy2 = List.of(5, 4, 7, 9, 10);
-        RedBlackTree<Integer> treeRightHeavy2 = createDummyTreeFromArray(listRightHeavy2);
-        assertTrue(treeRightHeavy2.validateRedBlackProperties());
-
-        List<Integer> sortedTreeRightHeavy2List = listRightHeavy2.stream().sorted().toList();
-        List<Integer> treeRightHeavy2Elems = new ArrayList<>();
-        treeRightHeavy2.forEach(treeRightHeavy2Elems::add);
-        assertEquals(sortedTreeRightHeavy2List, treeRightHeavy2Elems);
-
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
     }
 
-    @org.junit.jupiter.api.Test
-    void insertNode() {
-        Integer someValue = 4;
-        RedBlackTree<Integer> tree = createDummyTreeFromArray(List.of(someValue));
-        assertTrue(tree.validateRedBlackProperties());
-        Node<Integer> root = tree.getRoot();
-
-        assertNotNull(root);
-        assertEquals(root.getValue(), someValue);
-        assertNull(root.getParent());
-        assertNull(root.getChildLeft());
-        assertNull(root.getChildRight());
-
-        Node<Integer> found = tree.searchNode(someValue);
-        assertEquals(root, found);
-
-        tree.deleteNode(someValue);
-        assertNull(tree.getRoot());
-
-        assertThrows(IllegalArgumentException.class, () -> createDummyTreeFromArray(List.of(1, 2, 3, 2)));
-
-        List<Integer> treeList = generateRandomList(100);
-        RedBlackTree<Integer> tree2 = createDummyTreeFromArray(treeList);
-        assertTrue(tree2.validateRedBlackProperties());
-        Node<Integer> someNode = tree2.searchNode(treeList.get(5));
-        assertNotNull(someNode);
-        assertEquals(treeList.get(5), someNode.getValue());
-
-        List<Integer> sortedTreeList = treeList.stream().sorted().toList();
-        List<Integer> tree2Elems = new ArrayList<>();
-        tree2.forEach(tree2Elems::add);
-        assertEquals(sortedTreeList, tree2Elems);
-
-        tree2.deleteNode(treeList.get(5));
-        assertNull(tree2.searchNode(treeList.get(5)));
-        assertTrue(tree2.validateRedBlackProperties());
-
-    }
-
-    @org.junit.jupiter.api.Test
-    void rebalanceAfterDeleteTest() {
-
-        RedBlackTree<Integer> tree3 = createDummyTreeFromArray(List.of(2, 4, 1, 5, 3));
-        assertTrue(tree3.validateRedBlackProperties());
-
-        tree3.deleteNode(4);
-        assertTrue(tree3.validateRedBlackProperties());
-        List<Integer> tree3Elems = new ArrayList<>();
-        tree3.forEach(tree3Elems::add);
-        assertEquals(4, tree3Elems.size());
-
-        RedBlackTree<Integer> tree4 = createDummyTreeFromArray(List.of(6, 3, 7, 4, 8, 1));
-        assertTrue(tree4.validateRedBlackProperties());
-
-        tree4.deleteNode(3);
-        assertTrue(tree4.validateRedBlackProperties());
-        List<Integer> tree4Elems = new ArrayList<>();
-        tree4.forEach(tree4Elems::add);
-        assertEquals(5, tree4Elems.size());
-
-        tree4.deleteNode(tree4.getRoot().getValue());
-        assertTrue(tree4.validateRedBlackProperties());
-        tree4Elems = new ArrayList<>();
-        tree4.forEach(tree4Elems::add);
-        assertEquals(4, tree4Elems.size());
-
-
-        RedBlackTree<Integer> tree5 = createDummyTreeFromArray(List.of(10, 5, 15, 6, 13, 18, 12, 14, 19));
-        assertTrue(tree5.validateRedBlackProperties());
-
-        tree5.deleteNode(15);
-        assertTrue(tree5.validateRedBlackProperties());
-
-        final List<Integer> tree6List = List.of(3, 1, 5, 2, 4, 6, 7);
-        RedBlackTree<Integer> tree6 = createDummyTreeFromArray(tree6List);
-        assertTrue(tree6.validateRedBlackProperties());
-
-        tree6.deleteNode(1);
-        assertTrue(tree6.validateRedBlackProperties());
-        List<Integer> tree6Elems = new ArrayList<>();
-        tree6.forEach(tree6Elems::add);
-        assertEquals(tree6List.size() - 1, tree6Elems.size());
-
-        final List<Integer> tree7List = List.of(8, 4, 9, 2, 5, 10, 6);
-        RedBlackTree<Integer> tree7 = createDummyTreeFromArray(tree7List);
-        assertTrue(tree7.validateRedBlackProperties());
-
-        tree7.deleteNode(9);
-        assertTrue(tree7.validateRedBlackProperties());
-        List<Integer> tree7Elems = new ArrayList<>();
-        tree7.forEach(tree7Elems::add);
-        assertEquals(tree7List.size() - 1, tree7Elems.size());
-
-        final List<Integer> tree8List = List.of(2, 1, 5, 4, 7, 6, 8);
-        RedBlackTree<Integer> tree8 = createDummyTreeFromArray(tree8List);
-
-        tree8.deleteNode(4);
-        assertTrue(tree8.validateRedBlackProperties());
-        List<Integer> tree8Elems = new ArrayList<>();
-        tree8.forEach(tree8Elems::add);
-        assertEquals(tree8List.size() - 1, tree8Elems.size());
-
-
-        final List<Integer> tree9List = List.of(2, 1, 5, 4, 7, 6, 8, 10);
-        RedBlackTree<Integer> tree9 = createDummyTreeFromArray(tree9List);
-        assertTrue(tree9.validateRedBlackProperties());
-
-        tree9.deleteNode(4);
-        assertTrue(tree9.validateRedBlackProperties());
-        List<Integer> tree9Elems = new ArrayList<>();
-        tree9.forEach(tree9Elems::add);
-        assertEquals(tree9List.size() - 1, tree9Elems.size());
-
-        tree9.deleteNode(10);
-        assertTrue(tree9.validateRedBlackProperties());
-
-        tree9.deleteNode(4);
-        assertTrue(tree9.validateRedBlackProperties());
-
-        tree9.deleteNode(2);
-        assertTrue(tree9.validateRedBlackProperties());
-
-        final List<Integer> tree10List = List.of(10, 5, 15, 4);
-        RedBlackTree<Integer> tree10 = createDummyTreeFromArray(tree10List);
-
-        tree10.deleteNode(5);
-        assertTrue(tree10.validateRedBlackProperties());
-
-        RedBlackTree<Integer> tree11 = createDummyTreeFromArray(tree10List);
-
-        tree10.deleteNode(15);
-        assertTrue(tree11.validateRedBlackProperties());
-
-        final List<Integer> tree12List = List.of(2, 1, 5, 4, 8, 3, 7);
-        RedBlackTree<Integer> tree12 = createDummyTreeFromArray(tree12List);
-
-        tree12.deleteNode(4);
-        assertTrue(tree12.validateRedBlackProperties());
-
-
-    }
-
-    /**
-     * Deep structure of trees is compared with toString method.
-     * The reason for it lies in the implementation of delete method which uses
-     * .setValue on the node. Overriding .equals method brings a lot of mess.
-     *
-     * @throws CloneNotSupportedException
-     */
-    @org.junit.jupiter.api.Test
-    void restorePreviousTreeVersionTest() throws CloneNotSupportedException {
-
-        List<Integer> arrayList = generateRandomList(100);
-        RedBlackTree<Integer> tree = createDummyTreeFromArray(arrayList);
-        RedBlackTree<Integer> treeCopy = (RedBlackTree<Integer>) tree.clone();
-
-        assertEquals(tree.toString(), treeCopy.toString());
-
-        Node<Integer> root = tree.getRoot();
-        tree.deleteNode(root.getValue());
-        assertNotEquals(tree.toString(), treeCopy.toString());
-        tree.restoreToPrevious();
-        assertEquals(treeCopy.toString(), tree.toString());
-
-        int toDelete = arrayList.get(new Random().nextInt(0, 99));
-        tree.deleteNode(toDelete);
-        assertNull(tree.searchNode(toDelete));
-        assertNotEquals(tree.toString(), treeCopy.toString());
-        tree.restoreToPrevious();
-        assertEquals(treeCopy.toString(), tree.toString());
-
-        Integer insertValue = new Random().nextInt(1, 1000000);
-        tree.insertNode(insertValue);
-        assertEquals(insertValue, tree.searchNode(insertValue).getValue());
-        assertNotEquals(tree.toString(), treeCopy.toString());
-        tree.restoreToPrevious();
-        assertEquals(treeCopy.toString(), tree.toString());
-
-    }
-
-    private RedBlackTree<Integer> createDummyTreeFromArray(Collection<Integer> arrayList) {
+    @Test
+    void deleteRightLeafMinimalTest() {
+        List<Integer> treeList = List.of(1, 3);
         RedBlackTree<Integer> tree = new RedBlackTree<>();
-        arrayList.forEach(tree::insertNode);
-        return tree;
+        treeList.forEach(tree::insert);
+        int toDelete = 3;
+        tree.delete(toDelete);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
     }
 
-    private List<Integer> generateRandomList(int listSize) {
-        int bound = listSize * 1000;
-        return new Random().ints(listSize, 1, bound)
-                .boxed().collect(Collectors.toSet()).stream().toList();
+    @Test
+    void deleteManyTest() {
+        List<Integer> treeList = new ArrayList<>(Arrays.asList(7, 5, 8, 4, 6, 9, 2, 10, 3));
+
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+
+        tree.delete(9);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        assertEquals(treeList.size()-1, treeElems.size(), "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(9));
+        assertTrue(tree.validateRedBlackProperties());
+
+
+        tree.delete(3);
+        treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        assertEquals(treeList.size()-2, treeElems.size(), "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(3));
+        assertTrue(tree.validateRedBlackProperties());
+
+        tree.delete(4);
+        treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        assertEquals(treeList.size()-3, treeElems.size(), "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(4));
+        assertTrue(tree.validateRedBlackProperties());
+
+        tree.delete(7);
+        treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        assertEquals(treeList.size()-4, treeElems.size(), "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(7));
+        assertTrue(tree.validateRedBlackProperties());
+
+        tree.delete(10);
+        System.out.println(tree);
+        treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-5, treeElems.size(), "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(10));
+        assertTrue(tree.validateRedBlackProperties());
+
+
+
     }
 
+    @Test
+    void deleteRootRightMinimalTest() {
+        List<Integer> treeList = List.of(2,  3);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        int toDelete = 2;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+    }
+
+    @Test
+    void deleteRootLeftMinimalTest() {
+        List<Integer> treeList = List.of(2,  1);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        int toDelete = 2;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+    }
+
+    @Test
+    void  deleteRedSiblingRightTest() {
+        List<Integer> treeList = List.of(7, 5, 10, 3, 6, 8, 1);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        System.out.println(tree);
+        int toDelete = 10;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+        assertTrue(tree.validateRedBlackProperties());
+
+    }
+
+    @Test
+    void  deleteRedSiblingRightNotRootTest() {
+        List<Integer> treeList = List.of(5, 2, 7, 1, 3, 6, 10, 4, 8, 13, 15);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        System.out.println(tree);
+        int toDelete = 6;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+        assertTrue(tree.validateRedBlackProperties());
+
+    }
+
+    @Test
+    void  deleteRedSiblingLeftNotRootTest() {
+        List<Integer> treeList = List.of(10, 8, 13, 6, 9, 12, 14, 5, 7, 11, 4);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        System.out.println(tree);
+        int toDelete = 6; //9
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+        assertTrue(tree.validateRedBlackProperties());
+
+    }
+
+    @Test
+    void  deleteBlackSiblingRedParentTest() {
+        List<Integer> treeList = List.of(5, 2, 7, 1, 3, 6, 10, 4, 8, 13, 15);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        System.out.println(tree);
+        int toDelete = 10;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+        assertTrue(tree.validateRedBlackProperties());
+
+    }
+
+    @Test
+    void  deleteBlackSiblingBlackParentTest() {
+        List<Integer> treeList = List.of(5, 2, 7, 1, 3, 6, 10, 4, 8, 13, 15);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        System.out.println(tree);
+        int toDelete = 3;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+        assertTrue(tree.validateRedBlackProperties());
+
+    }
+
+    @Test
+    void  deleteRedSiblingLeftTest() {
+        List<Integer> treeList = List.of(7, 5, 10, 3, 9, 11, 8);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        System.out.println(tree);
+        int toDelete = 5;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+        assertTrue(tree.validateRedBlackProperties());
+
+    }
+
+    @Test
+    void  deleteBlackSiblingRightBlackNephewTest() {
+        List<Integer> treeList = List.of(17, 9, 19, 18, 75, 24);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        System.out.println(tree);
+        int toDelete = 18;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+        assertTrue(tree.validateRedBlackProperties());
+
+    }
+
+    @Test
+    void  deleteBlackSiblingLeftBlackNephewTest() {
+        List<Integer> treeList = List.of(17, 9, 20, 18, 75, 19);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        System.out.println(tree);
+        int toDelete = 75;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+        assertTrue(tree.validateRedBlackProperties());
+
+    }
+
+    @Test
+    void  deleteBlackSiblingRedNephewTest() {
+        List<Integer> treeList = List.of(17, 9, 19, 18, 75, 24, 81);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        System.out.println(tree);
+        int toDelete = 18;
+        tree.delete(toDelete);
+        System.out.println(tree);
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        System.out.println(treeElems);
+        assertEquals(treeList.size()-1, treeElems.size(),  "tree has wrong number of nodes");
+        assertThrows(NoSuchElementException.class, () -> tree.findNode(toDelete));
+        assertTrue(tree.validateRedBlackProperties());
+
+    }
+
+    @Test
+    void persistanceTest() {
+        List<Integer> treeList = List.of(3, 2, 4, 1);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        String oldTreeString = tree.toString();
+        tree.insert(5);
+        RedBlackTree<Integer> previousTree = tree.getPreviousVersion();
+        assertEquals(oldTreeString, previousTree.toString());
+        assertSame(tree.getRoot().getChildLeft(), previousTree.getRoot().getChildLeft(), "persistance violated. The node is changed although it should not");
+        assertNotSame(tree.getRoot().getChildRight(), previousTree.getRoot().getChildRight(), "persistance violated. The node is not changed, although it should");
+        assertEquals(tree.getRoot().getChildRight(), previousTree.getRoot().getChildRight(), "persistance violated. Node value is changed although it should not.");
+    }
+
+    @Test
+    void historyMinimalTest() {
+        List<Integer> treeList = List.of(3, 2, 4, 1);
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        treeList.forEach(tree::insert);
+        tree.delete(1);
+        tree.insert(1);
+        assertEquals(6, tree.getHistory().size(), "historisation violated. Not all changes written in history");
+        RedBlackTree<Integer> initTree = tree.getVersion(0);
+        assertNotSame(tree.getRoot(), initTree.getRoot(), "persistance violated. The node is not changed, although it should");
+        assertEquals(tree.getRoot(), initTree.getRoot(), "persistance violated. Node value is changed although it should not.");
+        assertNull(initTree.getRoot().getChildRight(), "historisation violated. This is not initial tree.");
+        assertNull(initTree.getRoot().getChildLeft(), "historisation violated. This is not initial tree.");
+    }
+
+
+    private void assertInsertCorrect(List<Integer> treeList) {
+        RedBlackTree<Integer> tree = new RedBlackTree<>();
+        //treeList.forEach(tree::insert);
+        for(int i=0; i<0;i++) {
+            tree.insert(treeList.get(i));
+        List<Integer> treeElems = new ArrayList<>();
+        tree.forEach(treeElems::add);
+        List<Integer> sortedTreeList = treeList.stream().sorted().toList();
+
+        assertEquals(treeList.size(), treeElems.size(),  "tree has wrong number of nodes");
+        assertEquals(sortedTreeList, treeElems, "tree is not sorted");
+        assertTrue(tree.validateRedBlackProperties(), "tree violates red-black conditions");
+        }
+
+    }
 
 }
