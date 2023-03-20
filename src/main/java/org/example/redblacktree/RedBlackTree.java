@@ -3,331 +3,415 @@ package org.example.redblacktree;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Stack;
 import java.util.logging.Logger;
 
-public class RedBlackTree<T extends Comparable<T>> implements Iterable<T>, Cloneable {
-
-    private Node<T> root;
-
-    private final RootChangeObserver<T> rootChangeObserver;
+public class RedBlackTree<T extends Comparable<T>> implements Iterable<T> {
+    private final Stack<Node<T>> history = new Stack<>();
 
     private static final Logger logger = Logger.getLogger(RedBlackTree.class.getName());
 
-    private final RedBlackTreeHistory<T> history = new RedBlackTreeHistory<>();
+    public RedBlackTree() {}
 
-    public RedBlackTree() {
-        this.rootChangeObserver = history;
-    }
-
-    public RedBlackTree(T rootValue) {
-        this.rootChangeObserver = history;
-        history.startRecording();
-        setRoot(createNode(rootValue));
-        root.markBlack();
-        history.stopRecording();
-    }
-
-    private Node<T> createNode(T value) {
-        Node<T> node = new Node<>(value);
-        node.setChangeObserver(history);
-        return node;
-    }
-
-    public Node<T> getRoot() {
-        return root;
-    }
-
-    private void setRoot(Node<T> root) {
-        this.rootChangeObserver.rootChanged(this.root);
-        this.root = root;
-    }
-
-    public Node<T> searchNode(T value) {
-        return searchNode(value, root);
-    }
-
-    public void insertNode(T value) {
-        history.startRecording();
-        Node<T> newNode = createNode(value);
-        setRoot(insertNode(root, newNode));
-        reColourAndReBalance(newNode);
-        history.stopRecording();
+    public RedBlackTree(Node<T> rootNode) {
+        history.add(rootNode);
     }
 
 
-    public void restoreToPrevious() {
-        RedBlackTreeHistory.Version<T> latestVersionChanges = history.getLatestVersionChanges();
-        if (latestVersionChanges.isRootChanged()) {
-            this.root = latestVersionChanges.getOldRoot();
-        }
-        latestVersionChanges.restoreNodes();
-    }
 
-    public void deleteNode(T value) {
-        history.startRecording();
-        deleteNode(value, root);
-        history.stopRecording();
-    }
+    public void insert(T value) {
+        logger.info("insert " + value);
+        Node<T> toInsert = new Node<>(value);
 
-    private Node<T> insertNode(Node<T> node, Node<T> newNode) {
-        if (node == null) {
-            return newNode;
-        }
-        if (newNode.compareTo(node) < 0) {
-            node.setChildLeft(insertNode(node.getChildLeft(), newNode));
-            node.getChildLeft().setParent(node);
-        } else if (newNode.compareTo(node) > 0) {
-            node.setChildRight(insertNode(node.getChildRight(), newNode));
-            node.getChildRight().setParent(node);
+        Node<T> newRoot;
+
+        if (getRoot() == null) {
+            logger.info("tree is empty, insert root");
+            newRoot = new Node<>(value, NodeColour.BLACK);
         } else {
-            throw new IllegalArgumentException("Duplicate node insert attempted. Node value: " + newNode.getValue());
-        }
-        return node;
-    }
-
-    private void deleteNode(T value, Node<T> localRoot)  {
-        Node<T> node = searchNode(value, localRoot);
-        if (node == null) {
-            return;
-        }
-
-        NodeColour deletedNodeColor = node.getColour();
-        Node<T> movedUpNode;
-
-        if (node.getChildLeft() == null || node.getChildRight() == null) {
-            movedUpNode = deleteNodeWithLessThan2Children(node);
-            if(root == null) {
-                return;
-            }
-        } else {
-
-            Node<T> minNode = node.getChildRight();
-            while (minNode.getChildLeft() != null) {
-                minNode = minNode.getChildLeft();
+            if(toInsert.compareTo(getRoot()) < 0) {
+                newRoot = new Node<>(getRoot().getValue(), NodeColour.BLACK, insertNode(getRoot().getChildLeft(), toInsert), getRoot().getChildRight());
+            } else if (toInsert.compareTo(getRoot()) > 0) {
+                newRoot = new Node<>(getRoot().getValue(), NodeColour.BLACK, getRoot().getChildLeft(), insertNode(getRoot().getChildRight(), toInsert));
+            } else {
+                throw new IllegalArgumentException("Node with value " + value + " already exists");
             }
 
-            T minNodeValue = minNode.getValue();
-            deletedNodeColor = minNode.getColour();
-            movedUpNode = deleteNodeWithLessThan2Children(minNode);
-            node.setValue(minNodeValue);
         }
-        if (deletedNodeColor == NodeColour.BLACK && movedUpNode != null) {
-            fixRedBlackPropertiesAfterDelete(movedUpNode);
-        }
+        newRoot = rebalanceAfterInsert(newRoot, toInsert);
+        history.push(newRoot);
+    }
 
+    public void delete(T value) {
+        logger.info("delete " + value);
+        history.push(deleteValue(value));
     }
 
 
-    private Node<T> deleteNodeWithLessThan2Children(Node<T> node) {
-        if (node.getParent() == null) {
-            setRoot(null);
-            return null;
-        }
-        if (node.isLeaf()) {
-            Node<T> newChild = null;
-            updateParentsChildren(node, newChild);
-            return newChild;
-        }else if (node.hasEmptyLeftChild()) {
-            updateParentsChildren(node, node.getChildRight());
-            return node.getChildRight();
+    private Node<T> insertNode(Node<T> current, Node<T> toInsert) {
+        if(current == null) {
+            return toInsert;
+        } else if (toInsert.compareTo(current) < 0) {
+            return new Node<>(current.getValue(), current.getColour(), insertNode(current.getChildLeft(), toInsert), current.getChildRight());
+        } else if (toInsert.compareTo(current) > 0) {
+            return new Node<>(current.getValue(), current.getColour(), current.getChildLeft(), insertNode(current.getChildRight(), toInsert));
         } else {
-            updateParentsChildren(node, node.getChildLeft());
-            return node.getChildLeft();
+            throw new IllegalArgumentException("Node with value " + toInsert.getValue() + " already exists");
         }
-
     }
 
-    private Node<T> searchNode(T value, Node<T> localRoot) {
-        if (localRoot == null) {
-            return null;
-        }
-        if (value.compareTo(localRoot.getValue()) == 0) {
-            return localRoot;
-        } else if (value.compareTo(localRoot.getValue()) < 0) {
-            return searchNode(value, localRoot.getChildLeft());
+    private Node<T> reInsertNode(Node<T> current, T oldNodeValue, Node<T> toInsert) {
+        if(current.getValue().equals(oldNodeValue)) {
+            return toInsert;
+        } else if (oldNodeValue.compareTo(current.getValue()) < 0) {
+            return new Node<>(current.getValue(), current.getColour(), reInsertNode(current.getChildLeft(), oldNodeValue, toInsert), current.getChildRight());
         } else {
-            return searchNode(value, localRoot.getChildRight());
+            return new Node<>(current.getValue(), current.getColour(), current.getChildLeft(), reInsertNode(current.getChildRight(), oldNodeValue, toInsert));
         }
     }
 
-    private void reColourAndReBalance(Node<T> node) {
-        Node<T> parent = node.getParent();
+    private Node<T> rebalanceAfterInsert(Node<T> root, Node<T> node) {
 
-        if (parent == null) {
-            node.markBlack();
-            return;
+        if(history.isEmpty()){
+            return root;
         }
+
+        if(node.equals(root)) {
+            return new Node<>(node.getValue(), NodeColour.BLACK, node.getChildLeft(), node.getChildRight());
+        }
+
+        Node<T> parent = findParent(root, node.getValue());
 
         if (parent.isBlack()) {
-            return;
+            return root;
         }
 
-        Node<T> grandparent = parent.getParent();
-        Node<T> uncle = getUncle(parent);
+        Node<T> grandparent = findParent(root, parent.getValue());
+        Node<T> grandparentOld = grandparent;
+        Node<T> uncle = parent.getSibling(grandparent);
 
-        if (uncle != null && uncle.isRed()) {
-            parent.switchColour();
-            grandparent.switchColour();
-            uncle.switchColour();
-            reColourAndReBalance(grandparent);
-
-        } else if (parent.isChildLeft()) {
-            if (node.isChildRight()) {
-                rotateLeft(parent);
-                parent = node;
+        if(uncle != null && uncle.isRed()) {
+            Node<T> newGrandparent;
+            if(parent.equals(grandparent.getChildLeft())) {
+                newGrandparent = new Node<>(grandparent.getValue(), grandparent.getColour(), parent.recolour(), uncle.recolour()).recolour();
+            } else {
+                newGrandparent = new Node<>(grandparent.getValue(), grandparent.getColour(), uncle.recolour(), parent.recolour()).recolour();
             }
-            rotateRight(grandparent);
+            if(newGrandparent.equals(root)) {
+                root = rebalanceAfterInsert(root, newGrandparent);
+            } else {
+                Node<T> newRoot = new Node<>(root.getValue(), root.getColour(), root.getChildLeft(), root.getChildRight());
+                root = reInsertNode(newRoot, grandparentOld.getValue(), newGrandparent);
+                root = rebalanceAfterInsert(root, findNode(root, newGrandparent.getValue()));
+            }
+            
+        } else if(parent.equals(grandparent.getChildLeft())) {
+            if (node.equals(parent.getChildRight())) {
+                parent = rotateLeft(parent).recolour();
+                grandparent = new Node<>(grandparent.getValue(), grandparent.getColour(), parent, grandparent.getChildRight());
 
-            parent.switchColour();
-            grandparent.switchColour();
+            } else {
+                parent = parent.recolour();
+            }
+            grandparent = new Node<>(grandparent.getValue(), grandparent.getColour().switchColour(), parent, grandparent.getChildRight());
+            grandparent = rotateRight(grandparent);
+
+            if(grandparentOld.equals(root)) {
+                return grandparent;
+            }
+            Node<T> newRoot = new Node<>(root.getValue(), root.getColour(), root.getChildLeft(), root.getChildRight());
+            root = reInsertNode(newRoot, grandparentOld.getValue(), grandparent);
+            root = rebalanceAfterInsert(root, findNode(root, grandparentOld.getValue()));
+        } else {
+            if (node.equals(parent.getChildLeft())) {
+                parent = rotateRight(parent).recolour();
+                grandparent = new Node<>(grandparent.getValue(), grandparent.getColour(), grandparent.getChildLeft(), parent);
+
+            } else {
+                parent = parent.recolour();
+            }
+            grandparent = new Node<>(grandparent.getValue(), grandparent.getColour().switchColour(),  grandparent.getChildLeft(), parent);
+            grandparent = rotateLeft(grandparent);
+
+            if(grandparentOld.equals(root)) {
+                return grandparent;
+            }
+            Node<T> newRoot = new Node<>(root.getValue(), root.getColour(), root.getChildLeft(), root.getChildRight());
+            root = reInsertNode(newRoot, grandparentOld.getValue(), grandparent);
+            root = rebalanceAfterInsert(root, findNode(root, grandparent.getValue()));
+        }
+        return root;
+
+    }
+
+
+    private Node<T> deleteValue(T value) {
+
+        Node<T> root = getRoot();
+        Node<T> parent = findParent(root, value);
+
+        Node<T> toDelete = findNode(parent, value);
+
+        if(toDelete == root && toDelete.isLeaf()) {
+            return null;
+        }
+
+        T parentValue = parent == null ? null : parent.getValue();
+        boolean isToDeleteLeftChild = toDelete.compareTo(parent) < 0;
+
+        Node<T> movedUpNode;
+        Node<T> movedUpNodeParent;
+        NodeColour deletedNodeColour = toDelete.getColour();
+
+        if(toDelete.hasEmptyLeftChild() || toDelete.hasEmptyRightChild()) {
+            movedUpNode = deleteNodeWithZeroOrOneChild(toDelete);
+            if(parent == null) {
+                return movedUpNode;
+            }
+            parent = updateParentsChildren(parent, movedUpNode, isToDeleteLeftChild);
+            movedUpNodeParent = parent;
 
         } else {
-            if (node.isChildLeft()) {
-                rotateRight(parent);
-                parent = node;
-            }
-            rotateLeft(grandparent);
+            Node<T> youngestRightNode = findYoungestNodeValue(toDelete.getChildRight());
+            Node<T> youngestRightNodeParent = findParent(toDelete, youngestRightNode.getValue());
 
-            parent.switchColour();
-            grandparent.switchColour();
-        }
-    }
+            movedUpNode = deleteNodeWithZeroOrOneChild(youngestRightNode);
+            deletedNodeColour = youngestRightNode.getColour();
 
-
-
-    private void rotateRight(Node<T> node) {
-        Node<T> leftChild = node.getChildLeft();
-
-        node.setChildLeft(leftChild.getChildRight());
-        if (leftChild.getChildRight() != null) {
-            leftChild.getChildRight().setParent(node);
-        }
-
-        leftChild.setChildRight(node);
-        leftChild.setParent(node.getParent());
-        updateParentsChildren(node, leftChild);
-        node.setParent(leftChild);
-    }
-
-
-
-    private void rotateLeft(Node<T> node) {
-        Node<T> rightChild = node.getChildRight();
-
-        node.setChildRight(rightChild.getChildLeft());
-        if (rightChild.getChildLeft() != null) {
-            rightChild.getChildLeft().setParent(node);
-        }
-
-        rightChild.setChildLeft(node);
-        rightChild.setParent(node.getParent());
-        updateParentsChildren(node, rightChild);
-        node.setParent(rightChild);
-    }
-
-    private void updateParentsChildren(Node<T> oldChild, Node<T> newChild){
-        Node<T> parent = oldChild.getParent();
-        if(parent == null) {
-            setRoot(newChild);
-            return;
-        } else if(oldChild.isChildLeft()) {
-            parent.setChildLeft(newChild);
-        } else if(oldChild.isChildRight()) {
-            parent.setChildRight(newChild);
-        }
-        if(newChild != null) {
-            newChild.setParent(parent);
-        }
-
-    }
-
-
-    private Node<T> getUncle(Node<T> parent) {
-        Node<T> grandparent = parent.getParent();
-        return parent.isChildLeft() ?
-                grandparent.getChildRight() :
-                grandparent.getChildLeft();
-    }
-
-    private void fixRedBlackPropertiesAfterDelete(Node<T> node) {
-
-        if (node == root) {
-            node.markBlack();
-            return;
-        }
-
-        Node<T> sibling = node.getSibling();
-
-        if (sibling.isRed()) {
-            sibling.switchColour();
-            node.getParent().markRed();
-
-            if (node.isChildLeft()) {
-                rotateLeft(node.getParent());
+            youngestRightNodeParent = updateParentsChildren(youngestRightNodeParent, movedUpNode, youngestRightNodeParent.getChildLeft() == youngestRightNode);
+            toDelete = reInsertNode(toDelete, youngestRightNodeParent.getValue(), youngestRightNodeParent);
+            toDelete = new Node<>(youngestRightNode.getValue(), toDelete.getColour(), toDelete.getChildLeft(), toDelete.getChildRight());
+            movedUpNodeParent = toDelete;
+            if(parent == null) {
+                root = toDelete;
             } else {
-                rotateRight(node.getParent());
+                parent = updateParentsChildren(parent, toDelete, isToDeleteLeftChild);
             }
-            sibling = node.getSibling();
+
+        }
+
+        if(deletedNodeColour == NodeColour.BLACK) {
+            root = reInsertNode(root, parentValue, parent);
+            root = recolourAndRebalanceAfterDelete(root, movedUpNodeParent, movedUpNode);
+            if (movedUpNode.getClass() == NilNode.class) {
+                Node<T> oldParent = findNode(root, movedUpNodeParent.getValue());
+                if(movedUpNode == oldParent.getChildLeft()){
+
+                oldParent = updateParentsChildren(oldParent, null, true);
+                } else {
+                    oldParent = updateParentsChildren(oldParent, null, false);
+
+                }
+                return reInsertNode(root, oldParent.getValue(), oldParent);
+            }
+            return root;
+        }
+        if(parent == null) {
+            return root;
+        }
+        return reInsertNode(root, parentValue, parent);
+    }
+
+
+    private Node<T> recolourAndRebalanceAfterDelete(Node<T> root, Node<T> parent, Node<T> node){
+        if(node.equals(root)){
+            return reInsertNode(root, parent.getValue(), parent);
+        }
+
+        T parentValue = parent.getValue();
+        boolean isNodeLeftChild = parent.getChildLeft() == node;
+        Node<T> sibling = node.getSibling(parent);
+        if(sibling.isRed()) {
+            sibling = sibling.recolour();
+            if(isNodeLeftChild) {
+                parent = new Node<>(parent.getValue(), NodeColour.RED, node, sibling);
+                if(parent.equals(root)) {
+                    root = rotateLeft(parent);
+                } else {
+                    parent = rotateLeft(parent);
+                    root = reInsertNode(root, parentValue, parent);
+                }
+            } else {
+                parent = new Node<>(parent.getValue(), NodeColour.RED, sibling, node);
+                if(parent.equals(root)) {
+                    root = rotateRight(parent);
+                } else {
+                    parent = rotateRight(parent);
+                    root = reInsertNode(root, parentValue, parent);
+                }
+            }
+
+            parent = findNode(root, parentValue);
+            sibling = node.getSibling(parent);
         }
 
         if ((sibling.getChildLeft() == null || sibling.getChildLeft().isBlack()) &&
                 (sibling.getChildRight() == null || sibling.getChildRight().isBlack())) {
-            sibling.markRed();
 
-            if (node.getParent().isRed()) {
-                node.getParent().switchColour();
+            sibling = sibling.recolour(NodeColour.RED);
+            parent = updateParentsChildren(parent, sibling, !isNodeLeftChild);
+
+            if (parent.isRed()) {
+                parent = parent.recolour();
+                return reInsertNode(root, parent.getValue(), parent);
             } else {
-                fixRedBlackPropertiesAfterDelete(node.getParent());
+                Node<T> grandparent = findParent(root, parent.getValue());
+                grandparent = updateParentsChildren(grandparent, parent, grandparent.getChildLeft().equals(parent));
+
+                return recolourAndRebalanceAfterDelete(root, grandparent, parent);
             }
         } else {
-            handleBlackSiblingWithAtLeastOneRedChild(node, sibling);
+            return reInsertNode(root, parent.getValue(), handleBlackSiblingWithAtLeastOneRedChild(parent, node, sibling));
         }
     }
 
-    private void handleBlackSiblingWithAtLeastOneRedChild(Node<T> node, Node<T> sibling) {
-        if (node.isChildLeft() && (sibling.getChildRight() == null || sibling.getChildRight().isBlack())) {
-            sibling.getChildLeft().switchColour();
-            sibling.switchColour();
-            rotateRight(sibling);
-            sibling = node.getParent().getChildRight();
-        } else if (node.isChildRight() && (sibling.getChildLeft() == null || sibling.getChildLeft().isBlack())) {
+    private Node<T> handleBlackSiblingWithAtLeastOneRedChild(Node<T> parent, Node<T> node, Node<T> sibling) {
+        boolean nodeIsLeftChild = parent.getChildLeft().equals(node);
 
-            sibling.getChildRight().switchColour();
-
-            sibling.switchColour();
-            rotateLeft(sibling);
-            sibling = node.getParent().getChildLeft();
+        if (nodeIsLeftChild && (sibling.getChildRight() == null || sibling.getChildRight().isBlack())) {
+            Node<T> siblingChildLeft = sibling.getChildLeft().recolour(NodeColour.BLACK);
+            sibling = new Node<>(sibling.getValue(), sibling.getColour().switchColour(), siblingChildLeft, sibling.getChildRight());
+            sibling = rotateRight(sibling);
+            parent = new Node<>(parent.getValue(), parent.getColour(), parent.getChildLeft(), sibling);
+        } else if (!nodeIsLeftChild && (sibling.getChildLeft() == null || sibling.getChildLeft().isBlack())) {
+            Node<T> siblingChildRight = sibling.getChildRight().recolour(NodeColour.BLACK);
+            sibling = new Node<>(sibling.getValue(), sibling.getColour().switchColour(), sibling.getChildLeft(), siblingChildRight);
+            sibling = rotateLeft(sibling);
+            parent = new Node<>(parent.getValue(), parent.getColour(), sibling, parent.getChildRight());
         }
 
-        sibling.setColour(node.getParent().getColour());
-        node.getParent().markBlack();
-        if (node.isChildLeft()) {
-            sibling.getChildRight().switchColour();
-            rotateLeft(node.getParent());
+        if (nodeIsLeftChild) {
+            Node<T> siblingChildRight = sibling.getChildRight().recolour(NodeColour.BLACK);
+            sibling = new Node<>(sibling.getValue(), parent.getColour(), sibling.getChildLeft(), siblingChildRight);
+            parent = new Node<>(parent.getValue(), NodeColour.BLACK, parent.getChildLeft(), sibling);
+            parent = rotateLeft(parent);
         } else {
-            sibling.getChildLeft().switchColour();
-            rotateRight(node.getParent());
+            Node<T> siblingChildLeft = sibling.getChildLeft().recolour(NodeColour.BLACK);
+            sibling = new Node<>(sibling.getValue(), parent.getColour(), siblingChildLeft, sibling.getChildRight());
+            parent = new Node<>(parent.getValue(), NodeColour.BLACK, sibling, parent.getChildRight());
+            parent = rotateRight(parent);
         }
+        return parent;
+    }
+
+    private Node<T> findYoungestNodeValue(Node<T> current) {
+        if (current.getChildLeft() == null) {
+            return current;
+        }
+        return findYoungestNodeValue(current.getChildLeft());
+    }
+
+    
+    private Node<T> deleteNodeWithZeroOrOneChild(Node<T> node) {
+        if(node.getChildLeft() != null){
+            return node.getChildLeft();
+        } else if(node.getChildRight() != null){
+            return node.getChildRight();
+        } else {
+            return node.getColour() == NodeColour.BLACK ? new NilNode<>() : null;
+        }
+    }
+
+    private Node<T> updateParentsChildren(Node<T> parent, Node<T> newChild, boolean updateLeft) {
+        return updateLeft ?
+                new Node<>(parent.getValue(), parent.getColour(), newChild, parent.getChildRight()) :
+                new Node<>(parent.getValue(), parent.getColour(), parent.getChildLeft(), newChild);
+    }
+
+    private Node<T> rotateRight(Node<T> node) {
+        Node<T> leftChild = node.getChildLeft();
+        Node<T> newNode = new Node<>(node.getValue(), node.getColour(), leftChild.getChildRight(), node.getChildRight());
+        return new Node<>(leftChild.getValue(), leftChild.getColour(), leftChild.getChildLeft(), newNode);
+    }
+
+
+    public Node<T> rotateLeft(Node<T> node){
+        Node<T> childRight = node.getChildRight();
+        Node<T> newNode = new Node<>(node.getValue(), node.getColour(), node.getChildLeft(), childRight.getChildLeft());
+        return new Node<>(childRight.getValue(), childRight.getColour(), newNode, childRight.getChildRight());
+    }
+    
+    
+    public List<Node<T>> getHistory() {
+        return Collections.unmodifiableList(history);
+    }
+
+    public RedBlackTree<T> getVersion(int version) {
+        return new RedBlackTree<>(history.get(version));
+    }
+
+    public RedBlackTree<T> getPreviousVersion(){
+        return getVersion(history.size()-2);
+    }
+
+    public Node<T> getRoot() {
+        if (history.isEmpty()) {
+            return null;
+        }
+        return history.get(history.size() - 1);
+    }
+
+    public Node<T> findNode(T value) {
+        return findNode(getRoot(), value);
+    }
+
+    private Node<T> findNode(Node<T> current, T value) {
+        if(current == null){
+            return getRoot();
+        }
+        if (current.getValue().compareTo(value) > 0) {
+            if (current.getChildLeft() != null) {
+                return findNode(current.getChildLeft(), value);
+            } else {
+                throw new NoSuchElementException("tree has no element with value " + value);
+            }
+        } else if (current.getValue().compareTo(value) < 0) {
+            if (current.getChildRight() != null) {
+                return findNode(current.getChildRight(), value);
+            } else {
+                throw new NoSuchElementException("tree has no element with value " + value);
+            }
+        }
+        return current;
+    }
+    
+
+    private Node<T> findParent(Node<T> currentNode, T value) {
+        if(value.equals(currentNode.getValue())){
+            return null;
+        }
+        if (currentNode.getValue().compareTo(value) < 0 && currentNode.getChildRight() != null && currentNode.getChildRight().getValue() != value) {
+            return findParent(currentNode.getChildRight(), value);
+        } else if (currentNode.getValue().compareTo(value) > 0 && currentNode.getChildLeft() != null && currentNode.getChildLeft().getValue() != value) {
+            return findParent(currentNode.getChildLeft(), value);
+        }
+        return currentNode;
     }
 
     @Override
     public Iterator<T> iterator() {
-        return new TreeIterator(root);
+        return new TreeIterator(getRoot());
     }
 
     private class TreeIterator implements Iterator<T> {
         private Node<T> next;
+        private final Stack<Node<T>> cursor = new Stack<>();
 
         public TreeIterator(Node<T> root) {
             next = root;
-            if(next == null)
-                return;
 
-            while (!next.hasEmptyLeftChild())
+            if(next == null) {
+                return;
+            }
+
+            while (!next.hasEmptyLeftChild()) {
+                cursor.push(next);
                 next = next.getChildLeft();
+            }
         }
 
         public boolean hasNext(){
@@ -335,64 +419,53 @@ public class RedBlackTree<T extends Comparable<T>> implements Iterable<T>, Clone
         }
 
         public T next(){
-            if(!hasNext()) throw new NoSuchElementException();
-            Node<T> r = next;
 
+            if(!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            Node<T> r = next;
             if(next.getChildRight() != null) {
+                cursor.push(next);
                 next = next.getChildRight();
-                while (next.getChildLeft() != null)
+                while (next.getChildLeft() != null) {
+                    cursor.push(next);
                     next = next.getChildLeft();
+                }
                 return r.getValue();
             }
 
             while(true) {
-                if(next.getParent() == null) {
+                if(cursor.isEmpty()) {
                     next = null;
                     return r.getValue();
                 }
-                if(next.getParent().getChildLeft() == next) {
-                    next = next.getParent();
+                if(cursor.peek().getChildLeft() == next) {
+                    next = cursor.pop();
                     return r.getValue();
                 }
-                next = next.getParent();
+                next = cursor.pop();
             }
         }
     }
 
 
-    @Override
-    public String toString() {
-        return root == null ? null : "RedBlackTree={" +
-                root +
-                '}';
-    }
-
-    @Override
-    protected Object clone() throws CloneNotSupportedException {
-        RedBlackTree<T> cloned = (RedBlackTree<T>) super.clone();
-        if (root != null) {
-            cloned.root = (Node<T>)root.clone();
-        }
-        return cloned;
-    }
-
     boolean validateRedBlackProperties() {
         //1. The root is black.
-        if(root.isRed()) {
+        if (getRoot().isRed()) {
             logger.warning("The root is not black");
             return false;
         }
         List<String> allPaths = collectAllPaths();
         String onePath = allPaths.get(0);
         int count = StringUtils.countMatches(onePath, "b");
-        for(String path : allPaths) {
+        for (String path : allPaths) {
             //2. A red node must not have red children.
-            if(path.contains("rr")) {
+            if (path.contains("rr")) {
                 logger.warning("In path [" + path + "] a red node has red child");
                 return false;
             }
             //3.  All paths from a node to the leaves below contain the same number of black nodes.
-            if(StringUtils.countMatches(path, "b") != count) {
+            if (StringUtils.countMatches(path, "b") != count) {
                 logger.warning("path [" + onePath + "] and [" + path + "] have different number of black nodes.");
                 return false;
             }
@@ -401,15 +474,15 @@ public class RedBlackTree<T extends Comparable<T>> implements Iterable<T>, Clone
     }
 
     private List<String> collectAllPaths() {
-        return collectAllPaths(root, "", new ArrayList<>());
+        return collectAllPaths(getRoot(), "", new ArrayList<>());
     }
 
     private List<String> collectAllPaths(Node<T> node, String curPath, List<String> allPaths) {
-        if(node == null) {
+        if (node == null) {
             return allPaths;
         }
         curPath = curPath.concat(node.getColour().getColourValue());
-        if(node.isLeaf()) {
+        if (node.isLeaf()) {
             allPaths.add(curPath);
             return allPaths;
         }
@@ -418,7 +491,16 @@ public class RedBlackTree<T extends Comparable<T>> implements Iterable<T>, Clone
         return allPaths;
     }
 
-    public interface RootChangeObserver<T extends Comparable<T>> {
-        void rootChanged(Node<T> oldRoot);
+    private static class NilNode<T extends Comparable<T>> extends Node<T> {
+        private NilNode() {
+            super();
+        }
+    }
+
+    @Override
+    public String toString() {
+        return getRoot() == null ? null : "RedBlackTree={" +
+                getRoot() +
+                '}';
     }
 }

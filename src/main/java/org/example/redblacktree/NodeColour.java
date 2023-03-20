@@ -12,4 +12,8 @@ enum NodeColour {
     String getColourValue(){
         return colourValue;
     }
+
+    NodeColour switchColour() {
+        return this == RED ? BLACK : RED;
+    }
 }
